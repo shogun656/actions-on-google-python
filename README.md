@@ -22,7 +22,6 @@ pip install google-actions
 
 ```python
 from googleactions import AppRequest, AppResponse
-import json
 
 request = "{...}" # Json request payload from dialogflow
 app_request = AppRequest(request)
