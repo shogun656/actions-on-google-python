@@ -6,7 +6,7 @@ This library parses AppRequest objects from Google Actions Dialogflow webhooks a
 
 Use the following libraries for creating webhooks in dialogflow with google actions for python.
 
-* [Flask Actions]()
+* [Flask Actions](https://github.com/caycewilliams/flask-actions-on-google-python)
 * ~Django Actions~ Coming soon
 
 [![PyPI](https://img.shields.io/pypi/v/nine.svg)](https://pypi.org/project/google-actions/1.0.0/)
@@ -15,7 +15,7 @@ Use the following libraries for creating webhooks in dialogflow with google acti
 ## Installation
 
 ```
-pip install googleactions
+pip install google-actions
 ```
 
 ## Basic Usage
