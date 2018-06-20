@@ -5,3 +5,6 @@ __pycache__
 *.pyc
 /dist/
 /*.egg-info
+.pytest_cache/
+Pipfile
+Pipfile.lock
