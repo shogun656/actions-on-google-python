@@ -1,5 +1,8 @@
 from setuptools import setup
 
+with open('requirements.txt') as file:
+    requirements = file.read().splitlines()
+
 setup(name='google-actions',
       version='1.0.0',
       description='Client library for Actions on Google using python',
@@ -8,4 +11,5 @@ setup(name='google-actions',
       author_email='caycewilliams77@gmail.com',
       license='MIT',
       packages=['googleactions'],
+      install_requires=requirements,
       zip_safe=False)
