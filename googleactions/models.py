@@ -1,5 +1,5 @@
 import json
-from googleactions.utils import flatten
+from googleactions.utils import flatten, to_iterable, to_list_of_dicts, get_or_create_array
 
 
 class Intent(object):
@@ -177,50 +177,35 @@ class SimpleResponse(object):
             item['displayText'] = self.text
         return item
 
+    def add(self, response):
+        response.get_items().append({'simpleResponse': self.dict()})
+
     @staticmethod
-    def get_simple_index(items):
+    def get_index(items):
         for index, item in enumerate(items):
             if 'simpleResponse' in item:
                 return index
         return None
 
-    def add(self, response):
-        items = response.get_items()
-        index = SimpleResponse.get_simple_index(items)
-        item = {'simpleResponse': self.dict()}
-        if index:
-            items[index] = item
-        else:
-            items.append(item)
-
 
 class Helper(object):
     @staticmethod
     def add_simple(response):
-        items = response.get_items()
-        index = SimpleResponse.get_simple_index(items)
-        simple = SimpleResponse('~')
-        if index:
-            items[index] = {'simpleResponse': simple.dict()}
-        else:
-            simple.add(response)
+        index = SimpleResponse.get_index(response.get_items())
+        if index is None:
+            SimpleResponse(speech='~').add(response)
 
 
 class BasicCard(object):
     def __init__(self,
                  title=None, subtitle=None, text=None,
-                 image=None, buttons=None, button=None,
+                 image=None, buttons=None,
                  image_display_options=None):
         self.title = title
         self.subtitle = subtitle
         self.formatted_text = text
         self.image = image
-        if button:
-            self.buttons = [button]
-        elif buttons:
-            self.buttons = buttons
-        else:
-            self.buttons = None
+        self.buttons = to_iterable(buttons)
         self.image_display_options = image_display_options
 
     def dict(self):
@@ -234,12 +219,9 @@ class BasicCard(object):
         if self.image:
             item['image'] = self.image.dict()
         if self.buttons:
-            b = []
-            for button in self.buttons:
-                b.append(button.dict())
-            item['buttons'] = b
+            item['buttons'] = to_list_of_dicts(self.buttons)
         if self.image_display_options:
-            item['imageDisplayOptions'] = self.image_display_options.dict()
+            item['imageDisplayOptions'] = self.image_display_options
         return item
 
     def add(self, response):
@@ -279,15 +261,12 @@ class MediaObject(object):
 
 
 class MediaResponse(object):
-    def __init__(self, media_type=MediaType.MEDIA_TYPE_UNSPECIFIED, media_object=None, media_objects=None):
+    def __init__(self, media_objects, media_type=MediaType.MEDIA_TYPE_UNSPECIFIED):
         self.media_type = media_type
-        if media_object:
-            self.media_objects = [media_object]
-        elif media_objects:
-            self.media_objects = media_objects
+        self.media_objects = to_iterable(media_objects)
 
     def dict(self):
-        return {'mediaType': self.media_type, 'mediaObjects': [obj.dict() for obj in self.media_objects]}
+        return {'mediaType': self.media_type, 'mediaObjects': to_list_of_dicts(self.media_objects)}
 
     def add(self, response):
         response.get_items().append({'mediaResponse': self.dict()})
@@ -338,12 +317,12 @@ class VersionFilter(object):
 class AndroidApp(object):
     def __init__(self, package_name, versions=None):
         self.package_name = package_name
-        self.versions = versions
+        self.versions = to_iterable(versions)
 
     def dict(self):
         item = {'packageName': self.package_name}
         if self.versions:
-            item['versions'] = [version.dict() for version in self.versions]
+            item['versions'] = to_list_of_dicts(self.versions)
         return item
 
 
@@ -378,10 +357,10 @@ class ListItem(object):
 class List(object):
     def __init__(self, title, items):
         self.title = title
-        self.items = items
+        self.items = to_iterable(items)
 
     def dict(self):
-        list = {'items': [item.dict() for item in self.items]}
+        list = {'items': to_list_of_dicts(self.items)}
         if self.title:
             list['title'] = self.title
         return {'intent': Intent.OPTION,
@@ -391,19 +370,6 @@ class List(object):
 
     def add(self, response):
         response.get_google_payload()['systemIntent'] = self.dict()
-
-
-class CarouselItem(object):
-    def __init__(self, title=None, description=None, image=None, option_info=None):
-        self.title = title
-        self.description = description
-        self.image = image
-        self.option_info = option_info
-
-
-class Carousel(object):
-    def __init__(self, items=None):
-        self.items = items
 
 
 class CarouselBrowseItem(object):
@@ -427,18 +393,17 @@ class CarouselBrowseItem(object):
 
 class CarouselBrowse(object):
     def __init__(self, items, image_display_options=None):
-        self.items = items
+        self.items = to_iterable(items)
         self.image_display_options = image_display_options
 
     def dict(self):
-        item = {'items': [item.dict() for item in self.items]}
+        item = {'items': to_list_of_dicts(self.items)}
         if self.image_display_options:
             item['imageDisplayOptions'] = self.image_display_options
         return item
 
     def add(self, response):
-        items = response.get_items()
-        items.append({'carouselBrowse': self.dict()})
+        response.get_items().append({'carouselBrowse': self.dict()})
 
 
 class ColumnProperties(object):
@@ -460,21 +425,21 @@ class Cell(object):
 
 class Row(object):
     def __init__(self, cells, divider_after=False):
-        self.cells = cells
+        self.cells = to_iterable(cells)
         self.divider_after = divider_after
 
     def dict(self):
-        return {'cells': [cell.dict() for cell in self.cells], 'dividerAfter': self.divider_after}
+        return {'cells': to_list_of_dicts(self.cells), 'dividerAfter': self.divider_after}
 
 
 class TableCard(object):
-    def __init__(self, title=None, subtitle=None, image=None, columns=None, rows=None, buttons=None):
+    def __init__(self, columns, rows, title=None, subtitle=None, image=None, buttons=None):
         self.title = title
         self.subtitle = subtitle
         self.image = image
-        self.column_properties = columns
-        self.rows = rows
-        self.buttons = buttons
+        self.column_properties = to_iterable(columns)
+        self.rows = to_iterable(rows)
+        self.buttons = to_iterable(buttons)
 
     def dict(self):
         item = {}
@@ -485,11 +450,11 @@ class TableCard(object):
         if self.image:
             item['image'] = self.image.dict()
         if self.column_properties:
-            item['columnProperties'] = [cps.dict() for cps in self.column_properties]
+            item['columnProperties'] = to_list_of_dicts(self.column_properties)
         if self.rows:
-            item['rows'] = [row.dict() for row in self.rows]
+            item['rows'] = to_list_of_dicts(self.rows)
         if self.buttons:
-            item['buttons'] = [button.dict() for button in self.buttons]
+            item['buttons'] = to_list_of_dicts(self.buttons)
         return item
 
     def add(self, response):
@@ -504,11 +469,7 @@ class Suggestion(object):
         return {'title': self.title}
 
     def add(self, response):
-        rich = response.get_rich_response()
-        key = 'suggestions'
-        if key not in rich:
-            rich[key] = []
-        rich[key].append(self.dict())
+        response.get_suggestions().append(self.dict())
 
 
 class Suggestions(object):
@@ -516,21 +477,18 @@ class Suggestions(object):
         self.suggestions = [Suggestion(title) for title in args]
 
     def add(self, response):
-        rich = response.get_rich_response()
-        key = 'suggestions'
-        if key not in rich:
-            rich[key] = []
-        for sug in self.suggestions:
-            rich[key].append(sug.dict())
+        suggestions = response.get_suggestions()
+        for suggestion in self.suggestions:
+            suggestions.append(suggestion.dict())
 
 
 class LinkOutSuggestion(object):
     def __init__(self, name, url):
-        self.destinationName = name
+        self.destination_name = name
         self.open_url_action = OpenUrlAction(url)
 
     def dict(self):
-        return {'destinationName': self.destinationName,
+        return {'destinationName': self.destination_name,
                 'url': self.open_url_action.url,
                 'openUrlAction': self.open_url_action.dict()}
 
@@ -540,9 +498,7 @@ class LinkOutSuggestion(object):
 
 class Permission(object):
     def __init__(self, context, permissions):
-        if type(permissions) is not list:
-            permissions = [permissions]
-        self.permissions = permissions
+        self.permissions = to_iterable(permissions)
         self.context = context
 
     def dict(self):
@@ -627,18 +583,17 @@ class Location(object):
         self.name = name
         self.formatted_address = formatted_address
         self.place_id = place_id
-        # TODO Other fields https://developers.google.com/actions/reference/rest/Shared.Types/Location
 
 
 class HelperAndroidLink(object):
     def __init__(self, url, package, reason):
-        self.url = OpenUrlAction(url=url, android_app=AndroidApp(package_name=package))
+        self.open_url_action = OpenUrlAction(url=url, android_app=AndroidApp(package_name=package))
         self.reason = reason
 
     def dict(self):
         return {'intent': Intent.LINK,
                 'data': {'@type': AtType.LINK_VALUE_SPEC,
-                         'openUrlAction': self.url.dict(),
+                         'openUrlAction': self.open_url_action.dict(),
                          'dialogSpec': {
                              'requestLinkReason': self.reason}}}
 
@@ -651,9 +606,7 @@ class HelperNewSurface(object):
     def __init__(self, context, notification_title, capabilities):
         self.context = context
         self.notification_title = notification_title
-        if type(capabilities) is not list:
-            capabilities = [capabilities]
-        self.capabilities = capabilities
+        self.capabilities = to_iterable(capabilities)
 
     def dict(self):
         return {'intent': Intent.NEW_SURFACE,
@@ -668,24 +621,18 @@ class HelperNewSurface(object):
 
 
 class Storage(object):
-    def __init__(self, overwrite=False, **kwargs):
+    def __init__(self, dictionary=None, overwrite=False, **kwargs):
+        self.dictionary = dictionary if dictionary else kwargs
         self.overwrite = overwrite
-        if overwrite is not None:
-            self.dictionary = {}
-            if kwargs is not None:
-                for key, value in kwargs.items():
-                    if value:
-                        self.dictionary[key] = value
-        else:
-            self.dictionary = None
 
     def add(self, response, request=None):
+        payload = response.get_google_payload()
         if not self.dictionary:
-            response.get_google_payload()['resetUserStorage'] = True  # Does this work?
             self.dictionary = {}
-        elif not self.overwrite:
+            payload['resetUserStorage'] = True  # Does this work?
+        elif not self.overwrite and request:
             self.dictionary.update(request.get_storage())
-        response.get_google_payload()['userStorage'] = json.dumps(self.dictionary)
+        payload['userStorage'] = json.dumps(self.dictionary)
 
 
 class LatLng(object):
@@ -724,11 +671,7 @@ class UserProfile(object):
 
 class AppResponse(object):
     def __init__(self, items, app_request=None):
-        items = flatten(items)
-        if type(items) is tuple:
-            items = list(items)
-        elif type(items) is not list:
-            items = [items]
+        self.app_request = app_request
         self.response = {
             'payload':
                 {
@@ -740,21 +683,32 @@ class AppResponse(object):
                     }
                 }
         }
-        if app_request and app_request.is_intent(Intent.CANCEL):
-            items.append(End())
-        for item in items:
+        has_end = False
+        for item in flatten(items):
             if type(item) is str:
                 SimpleResponse(item).add(self)
             elif type(item) is Storage:
                 item.add(self, app_request)
+            elif type(item) is End:
+                has_end = True
+                item.add(self)
             else:
                 item.add(self)
+
+        if not has_end and self.needs_end(app_request):
+            End().add(self)
+
+    def needs_end(self):
+        return self.app_request and self.app_request.is_intent(Intent.CANCEL)
 
     def get_google_payload(self):
         return self.response['payload']['google']
 
     def get_rich_response(self):
         return self.get_google_payload()['richResponse']
+
+    def get_suggestions(self):
+        return get_or_create_array(self.get_rich_response(), 'suggestions')
 
     def get_items(self):
         return self.get_rich_response()['items']
