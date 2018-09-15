@@ -683,23 +683,32 @@ class AppResponse(object):
                     }
                 }
         }
+        AppResponse.add_items(self, items, app_request)
+
+    @staticmethod
+    def add_items(self, items, app_request):
         has_end = False
         for item in flatten(items):
-            if type(item) is str:
+            item_type = type(item)
+            if item_type is str:
                 SimpleResponse(item).add(self)
-            elif type(item) is Storage:
+            elif item_type is Storage:
                 item.add(self, app_request)
-            elif type(item) is End:
+            elif item_type is End:
                 has_end = True
                 item.add(self)
             else:
                 item.add(self)
+        AppResponse.add_end_item(has_end, app_request)
 
-        if not has_end and self.needs_end(app_request):
+    @staticmethod
+    def add_end_item(self, has_end=False, app_request=None):
+        if not has_end and AppResponse.needs_end(app_request):
             End().add(self)
 
-    def needs_end(self):
-        return self.app_request and self.app_request.is_intent(Intent.CANCEL)
+    @staticmethod
+    def needs_end(app_request):
+        return app_request and app_request.is_intent(Intent.CANCEL)
 
     def get_google_payload(self):
         return self.response['payload']['google']
@@ -727,98 +736,95 @@ class AppRequest(object):
     def get_payload(self):
         return self.data['originalDetectIntentRequest']['payload']
 
-    def get_query(self):
-        return self.data['queryResult']['queryText']
+    def get_query_result(self):
+        return self.data['queryResult']
 
-    def get_data(self, storage_name, param_name):
+    def get_query(self):
+        return self.get_query_result()['queryText']
+
+    def get_params(self):
+        try:
+            return [ctx['parameters'] for ctx in self.get_query_result()['outputContexts']]
+        except KeyError:
+            return None
+
+    def get_param(self, name, original=False):
+        if original:
+            name = name+'.original'
+        params = self.get_params()
+        if params:
+            for param in params:
+                if name in param:
+                    return param[name]
+        return None
+
+    def get_data(self, name=None, storage_name=None, param_name=None):
+        if name:
+            storage_name = name
+            param_name = name
         data = self.get_storage().get(storage_name, None)
         if data is None:
             data = self.get_param(param_name)
         return data
 
-    def get_param(self, name, original=False):
-        if original:
-            name = name+'.original'
-        try:
-            params = [param for param in self.data['queryResult']['outputContexts']]
-            params = [param['parameters'] for param in params]
-            for param in params:
-                if name in param:
-                    return param[name]
-        except KeyError:
-            return None
-
     def has_all_params(self):
         try:
-            return self.data['queryResult']['allRequiredParamsPresent']
+            return self.get_query_result()['allRequiredParamsPresent']
         except KeyError:
             return False
 
     def has(self, capabilities):
         try:
-            if type(capabilities) is not list:
-                capabilities = [capabilities]
-            surf = self.get_payload()['surface']
-            return self.check_surface(surf, capabilities)
-        except AttributeError or KeyError:
+            return AppRequest.check_surface(self.get_payload()['surface'], capabilities)
+        except KeyError:
             return False
 
     def has_surface(self, capabilities):
         try:
-            if type(capabilities) is not list:
-                capabilities = [capabilities]
-            surfaces = self.get_payload()['availableSurfaces']
-            for surf in surfaces:
-                if self.check_surface(surf, capabilities):
+            for surface in self.get_payload()['availableSurfaces']:
+                if AppRequest.check_surface(surface, capabilities):
                     return True
-            return False
-        except AttributeError or KeyError:
-            return False
-
-    def check_surface(self, surf, capabilities):
-        return sum([1 if m_cap == s_cap['name'] else 0
-                    for m_cap in capabilities
-                    for s_cap in surf['capabilities']]) == len(capabilities)
+        except KeyError:
+            pass
+        return False
 
     def is_intent(self, intent):
-        if self.is_dialogflow_event_name(intent) or \
-           self.is_dialogflow_action(intent) or \
-           self.get_input(intent):
-                return True
-        return False
+        return self.is_dialogflow_event_name(intent) or \
+               self.is_dialogflow_action(intent) or \
+               self.get_input(intent) is not None
 
     def get_input(self, intent):
         try:
             inputs = self.get_payload()['inputs']
-            for inp in inputs:
-                if inp['intent'] == intent:
-                    return inp
+            for input in inputs:
+                if input['intent'] == intent:
+                    return input
             return None
         except KeyError:
             return None
 
     def is_dialogflow_event_name(self, name):
         try:
-            return self.data['queryResult']['intent']['displayName'] == name
+            return self.get_query_result()['intent']['displayName'] == name
         except KeyError:
             return False
 
     def is_dialogflow_action(self, action):
         try:
-            return self.data['queryResult']['action'] == action
+            return self.get_query_result()['action'] == action
         except KeyError:
             return False
 
     def get_selected_option(self):
-        inp = self.get_input(Intent.OPTION)
-        return inp['arguments'][0]['textValue'] if inp else None
+        input = self.get_input(Intent.OPTION)
+        return input['arguments'][0]['textValue'] if input else None
 
     def get_helper_date_time(self):
-        inp = self.get_input(Intent.DATETIME)
-        dt = inp['arguments'][0]['datetimeValue'] if inp else None
-        if dt:
-            date = dt['date']
-            time = dt['time']
+        input = self.get_input(Intent.DATETIME)
+        date_time = input['arguments'][0]['datetimeValue'] if input else None
+        if date_time:
+            date = date_time['date']
+            time = date_time['time']
             return DateTime(date=Date(year=date.get('year'),
                                       month=date.get('month'),
                                       day=date.get('day')),
@@ -829,13 +835,14 @@ class AppRequest(object):
         return None
 
     def has_permission(self):
-        inp = self.get_input(Intent.PERMISSION)
-        if inp:
-            arg = inp['arguments'][0]
-            try:
-                return arg['textValue'] == 'true'
-            except KeyError:
-                return arg['boolValue']
+        input = self.get_input(Intent.PERMISSION)
+        if input:
+            argument = input['arguments'][0]
+            if 'textValue' in argument:
+                return argument['textValue'] == 'true'
+            elif 'boolValue' in argument:
+                return argument['boolValue']
+        return False
 
     def get_permission_user_profile(self):
         try:
@@ -848,50 +855,78 @@ class AppRequest(object):
 
     def get_permission_location(self):
         try:
-            coords = self.get_payload()['device']['location']['coordinates']
-            return LatLng(latitude=coords['latitude'], longitude=coords['longitude'])
+            coordinates = self.get_payload()['device']['location']['coordinates']
+            return LatLng(latitude=coordinates['latitude'],
+                          longitude=coordinates['longitude'])
         except KeyError:
             return None
 
     def is_helper_signed_in(self):
-        inp = self.get_input(Intent.SIGN_IN)
-        return inp['arguments'][0]['extension']['status'] == 'OK'
+        input = self.get_input(Intent.SIGN_IN)
+        try:
+            if input:
+                return input['arguments'][0]['extension']['status'] == 'OK'
+        except KeyError:
+            pass
+        return False
 
     def get_helper_sign_in_access_token(self):
         return self.get_user().accessToken
 
     def get_helper_place(self):
-        inp = self.get_input(Intent.PLACE)
-        if inp:
+        input = self.get_input(Intent.PLACE)
+        if input:
             try:
-                place = inp['arguments'][0]['placeValue']
-                coords = place['coordinates']
-                return Location(coordinates=LatLng(latitude=coords.get('latitude'), longitude=coords.get('longitude')),
+                place = input['arguments'][0]['placeValue']
+                coordinates = place['coordinates']
+                return Location(coordinates=LatLng(latitude=coordinates.get('latitude'),
+                                                   longitude=coordinates.get('longitude')),
                                 name=place.get('name'),
                                 formatted_address=place.get('formattedAddress'),
                                 place_id=place.get('placeId'))
             except KeyError:
-                return None
-        else:
-            return None
+                pass
+        return None
 
     def get_helper_confirmation(self):
-        inp = self.get_input(Intent.CONFIRMATION)
-        return inp['arguments'][0]['boolValue'] if inp else None
+        input = self.get_input(Intent.CONFIRMATION)
+        if input:
+            try:
+                return input['arguments'][0]['boolValue']
+            except KeyError:
+                pass
+        return False
 
     def get_helper_link_status(self):
-        inp = self.get_input(Intent.LINK)
-        return inp['arguments'][0]['status']['code']
+        input = self.get_input(Intent.LINK)
+        if input:
+            try:
+                return input['arguments'][0]['status']['code']
+            except KeyError:
+                pass
+        return None
 
     def get_helper_new_surface(self):
-        inp = self.get_input(Intent.NEW_SURFACE)
-        return inp['arguments'][0]['extension']['status'] == 'OK'
+        input = self.get_input(Intent.NEW_SURFACE)
+        if input:
+            try:
+                return input['arguments'][0]['extension']['status'] == 'OK'
+            except KeyError:
+                pass
+        return False
 
     def get_storage(self):
         try:
             return json.loads(self.get_payload()['user']['userStorage'])
         except KeyError:
             return {}
+
+    @staticmethod
+    def check_surface(surface, capabilities):
+        capabilities = to_iterable(capabilities)
+        return sum([1 if m_cap == s_cap['name'] else 0
+                    for m_cap in capabilities
+                    for s_cap in surface['capabilities']]) == len(capabilities)
 
     def json(self):
         return json.dumps(self.data)

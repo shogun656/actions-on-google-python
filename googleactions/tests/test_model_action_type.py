@@ -1,4 +1,4 @@
-from googleactions.models import ActionType
+from googleactions import ActionType
 
 
 def test_field_unknown_is_equal():
