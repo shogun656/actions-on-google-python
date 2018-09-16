@@ -143,8 +143,8 @@ class SsmlBuilder(object):
         return self
 
     def start_media(self,
-              id=None, begin=None, end=None, repeat_count=None,
-              repeat_dur=None, sound_level=None, fade_in_dur=None, fade_out_dur=None):
+                    id=None, begin=None, end=None, repeat_count=None,
+                    repeat_dur=None, sound_level=None, fade_in_dur=None, fade_out_dur=None):
         self.start_tag(SsmlBuilder.MEDIA, [
             ('xml:id', id),
             ('begin', begin),
