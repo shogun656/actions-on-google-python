@@ -35,4 +35,8 @@ def to_list_of_dicts(objects):
 def get_or_create_array(dict, key):
     if key not in dict:
         dict[key] = []
-    return dict[key]
+        return dict[key]
+    val = to_iterable(dict[key])
+    dict[key] = val
+    return val
+

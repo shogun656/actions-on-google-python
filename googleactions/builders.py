@@ -7,6 +7,7 @@ from googleactions.models import (TableCard,
                                   ProsodyRate,
                                   EmphasisLevel,
                                   HorizontalAlignment)
+from googleactions.utils import to_iterable
 
 
 class SsmlBuilder(object):
@@ -194,54 +195,51 @@ class SsmlBuilder(object):
 
 class TableCardBuilder(object):
     def __init__(self):
-        self.rows = []
-        self.divs = []
-        self._headers = []
-        self.aligns = []
-        self._button = None
-        self._title = None
-        self._subtitle = None
-        self._image = None
+        self.tc_rows = []
+        self.tc_divs = []
+        self.tc_headers = []
+        self.tc_aligns = []
+        self.tc_button = None
+        self.tc_title = None
+        self.tc_subtitle = None
+        self.tc_image = None
 
     def title(self, title):
-        self._title = title
+        self.tc_title = title
         return self
 
     def subtitle(self, subtitle):
-        self._subtitle = subtitle
+        self.tc_subtitle = subtitle
         return self
 
     def row(self, cells, divider_after=False):
-        self.rows.append(cells)
-        self.divs.append(divider_after)
+        self.tc_rows.append(cells)
+        self.tc_divs.append(divider_after)
         return self
 
     def headers(self, headers, aligns=None):
         if not aligns:
             aligns = [HorizontalAlignment.CENTER for _ in headers]
-        self._headers = headers
-        self.aligns = aligns
+        self.tc_headers = headers
+        self.tc_aligns = aligns
         return self
 
     def button(self, button):
-        self._button = button
+        self.tc_button = button
         return self
 
     def image(self, image):
-        self._image = image
+        self.tc_image = image
         return self
 
     def build(self):
-        if len(self.rows) > 0 and len(self.rows[0]) == len(self._headers):
-            buttons = None
-            if self._button:
-                buttons = [self._button]
-            return TableCard(title=self._title,
-                             subtitle=self._subtitle,
-                             image=self._image,
+        if len(self.tc_rows) > 0 and len(self.tc_rows[0]) == len(self.tc_headers):
+            return TableCard(title=self.tc_title,
+                             subtitle=self.tc_subtitle,
+                             image=self.tc_image,
                              columns=[ColumnProperties(header=header, align=align)
-                                      for header, align in zip(self._headers, self.aligns)],
+                                      for header, align in zip(self.tc_headers, self.tc_aligns)],
                              rows=[Row(cells=[Cell(text=cell) for cell in row], divider_after=div)
-                                   for row, div in zip(self.rows, self.divs)],
-                             buttons=buttons)
+                                   for row, div in zip(self.tc_rows, self.tc_divs)],
+                             buttons=to_iterable(self.tc_button))
         return None

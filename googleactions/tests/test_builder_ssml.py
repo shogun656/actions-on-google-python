@@ -1,5 +1,5 @@
 from googleactions import SsmlBuilder, InterpretAs, ProsodyRate, ProsodyPitch, EmphasisLevel
-from unittest.mock import Mock, MagicMock
+from unittest.mock import MagicMock
 
 
 def setup_module(module):
@@ -34,7 +34,7 @@ def test_constants():
 
 def test_init():
     ssml_builder = SsmlBuilder()
-    assert not ssml_builder.txt
+    assert ssml_builder
 
 
 def test_start_tag():
