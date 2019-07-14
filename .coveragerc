@@ -1,0 +1,6 @@
+[run]
+source =
+    googleactions
+
+omit =
+    googleactions/__init__.py
